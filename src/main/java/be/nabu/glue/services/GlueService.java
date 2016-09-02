@@ -42,7 +42,7 @@ public class GlueService implements Service {
 			if (input == null) {
 				synchronized(this) {
 					if (input == null) {
-						input = GlueTypeUtils.toType(ScriptUtils.getFullName(script), ScriptUtils.getInputs(script), new StructureGenerator(), ScriptUtils.getRoot(script.getRepository()));;
+						input = GlueTypeUtils.toType(ScriptUtils.getFullName(script), ScriptUtils.getInputs(script), new StructureGenerator(), ScriptUtils.getRoot(script.getRepository()));
 						((ModifiableComplexType) input).setName("input");
 					}
 				}
@@ -50,10 +50,11 @@ public class GlueService implements Service {
 			if (output == null) {
 				synchronized(this) {
 					if (output == null) {
+						final boolean returnAll = script.getRoot().getContext() != null && script.getRoot().getContext().getAnnotations() != null && script.getRoot().getContext().getAnnotations().containsKey("returnAll");
 						output = GlueTypeUtils.toType(ScriptUtils.getOutputs(script, new ExecutorFilter() {
 							@Override
 							public boolean accept(Executor executor) {
-								return executor.getContext() != null && executor.getContext().getAnnotations() != null && executor.getContext().getAnnotations().containsKey("return");
+								return returnAll || (executor.getContext() != null && executor.getContext().getAnnotations() != null && executor.getContext().getAnnotations().containsKey("return"));
 							}
 						}), new StructureGenerator(), ScriptUtils.getRoot(script.getRepository()));
 						((ModifiableComplexType) output).setName("output");
