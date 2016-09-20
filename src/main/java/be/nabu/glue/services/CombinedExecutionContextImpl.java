@@ -11,6 +11,7 @@ import be.nabu.glue.api.ExecutionEnvironment;
 import be.nabu.glue.api.Executor;
 import be.nabu.glue.api.LabelEvaluator;
 import be.nabu.glue.impl.SimpleExecutionContext;
+import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.metrics.api.MetricInstance;
 import be.nabu.libs.services.api.ExecutionContextProvider;
 import be.nabu.libs.services.api.SecurityContext;
@@ -29,7 +30,7 @@ public class CombinedExecutionContextImpl implements CombinedExecutionContext {
 	
 	public CombinedExecutionContextImpl(ExecutionContext glueContext, ExecutionContextProvider provider, Principal principal) {
 		this.glueContext = glueContext;
-		this.serviceContext = provider.newExecutionContext(principal);
+		this.serviceContext = provider.newExecutionContext(principal instanceof Token ? (Token) principal : null);
 	}
 	
 	public CombinedExecutionContextImpl(be.nabu.libs.services.api.ExecutionContext serviceContext, ExecutionEnvironment environment, LabelEvaluator labelEvaluator) {
@@ -129,7 +130,7 @@ public class CombinedExecutionContextImpl implements CombinedExecutionContext {
 
 	@Override
 	public Principal getPrincipal() {
-		return getSecurityContext() == null ? null : getSecurityContext().getPrincipal();
+		return getSecurityContext() == null ? null : getSecurityContext().getToken();
 	}
 
 	@Override
