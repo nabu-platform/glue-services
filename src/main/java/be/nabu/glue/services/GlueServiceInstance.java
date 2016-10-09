@@ -3,7 +3,7 @@ package be.nabu.glue.services;
 import java.util.HashMap;
 import java.util.Map;
 
-import be.nabu.glue.ScriptRuntime;
+import be.nabu.glue.utils.ScriptRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.api.ServiceException;

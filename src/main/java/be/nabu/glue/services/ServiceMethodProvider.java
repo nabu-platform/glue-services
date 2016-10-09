@@ -11,13 +11,13 @@ import java.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import be.nabu.glue.ScriptRuntime;
 import be.nabu.glue.api.ExecutionContext;
 import be.nabu.glue.api.MethodDescription;
-import be.nabu.glue.api.MethodProvider;
 import be.nabu.glue.api.ParameterDescription;
+import be.nabu.glue.core.api.MethodProvider;
 import be.nabu.glue.impl.SimpleMethodDescription;
 import be.nabu.glue.impl.SimpleParameterDescription;
+import be.nabu.glue.utils.ScriptRuntime;
 import be.nabu.libs.evaluator.EvaluationException;
 import be.nabu.libs.evaluator.api.Operation;
 import be.nabu.libs.evaluator.base.BaseMethodOperation;
