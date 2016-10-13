@@ -248,7 +248,8 @@ public class ServiceMethodProvider implements MethodProvider {
 				if (!(object instanceof ComplexContent)) {
 					object = new BeanInstance(object);
 				}
-				return Structure.cast((ComplexContent) object, type);
+				ComplexContent cast = Structure.cast((ComplexContent) object, type);
+				return cast == null ? new MaskedContent((ComplexContent) object, type) : cast;
 			}
 		}
 	}
