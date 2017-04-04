@@ -24,6 +24,7 @@ public class GlueService implements Service {
 	private ExecutionEnvironment environment;
 	private LabelEvaluator labelEvaluator;
 	private ComplexType input, output;
+	private ServiceInterface implementedInterface;
 
 	public GlueService(Script script, ExecutionEnvironment environment, LabelEvaluator labelEvaluator) {
 		this.script = script;
@@ -72,7 +73,7 @@ public class GlueService implements Service {
 				}
 				@Override
 				public ServiceInterface getParent() {
-					return null;
+					return implementedInterface;
 				}
 			};
 		}
@@ -99,6 +100,14 @@ public class GlueService implements Service {
 
 	public LabelEvaluator getLabelEvaluator() {
 		return labelEvaluator;
+	}
+
+	public ServiceInterface getImplementedInterface() {
+		return implementedInterface;
+	}
+
+	public void setImplementedInterface(ServiceInterface implementedInterface) {
+		this.implementedInterface = implementedInterface;
 	}
 	
 }
