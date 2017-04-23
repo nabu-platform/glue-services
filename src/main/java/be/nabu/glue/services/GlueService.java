@@ -14,7 +14,9 @@ import be.nabu.glue.utils.ScriptUtils.ExecutorFilter;
 import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.api.ServiceInstance;
 import be.nabu.libs.services.api.ServiceInterface;
+import be.nabu.libs.types.DefinedTypeResolverFactory;
 import be.nabu.libs.types.api.ComplexType;
+import be.nabu.libs.types.api.DefinedTypeResolver;
 import be.nabu.libs.types.api.ModifiableComplexType;
 import be.nabu.libs.types.structure.StructureGenerator;
 
@@ -25,6 +27,7 @@ public class GlueService implements Service {
 	private LabelEvaluator labelEvaluator;
 	private ComplexType input, output;
 	private ServiceInterface implementedInterface;
+	private DefinedTypeResolver typeResolver;
 
 	public GlueService(Script script, ExecutionEnvironment environment, LabelEvaluator labelEvaluator) {
 		this.script = script;
@@ -43,7 +46,7 @@ public class GlueService implements Service {
 			if (input == null) {
 				synchronized(this) {
 					if (input == null) {
-						input = GlueTypeUtils.toType(ScriptUtils.getFullName(script), ScriptUtils.getInputs(script), new StructureGenerator(), ScriptUtils.getRoot(script.getRepository()));
+						input = GlueTypeUtils.toType(ScriptUtils.getFullName(script), ScriptUtils.getInputs(script), new StructureGenerator(), ScriptUtils.getRoot(script.getRepository()), getTypeResolver());
 						((ModifiableComplexType) input).setName("input");
 					}
 				}
@@ -57,7 +60,7 @@ public class GlueService implements Service {
 							public boolean accept(Executor executor) {
 								return returnAll || (executor.getContext() != null && executor.getContext().getAnnotations() != null && executor.getContext().getAnnotations().containsKey("return"));
 							}
-						}), new StructureGenerator(), ScriptUtils.getRoot(script.getRepository()));
+						}), new StructureGenerator(), ScriptUtils.getRoot(script.getRepository()), getTypeResolver());
 						((ModifiableComplexType) output).setName("output");
 					}
 				}
@@ -108,6 +111,17 @@ public class GlueService implements Service {
 
 	public void setImplementedInterface(ServiceInterface implementedInterface) {
 		this.implementedInterface = implementedInterface;
+	}
+
+	public DefinedTypeResolver getTypeResolver() {
+		if (typeResolver == null) {
+			typeResolver = DefinedTypeResolverFactory.getInstance().getResolver();
+		}
+		return typeResolver;
+	}
+
+	public void setTypeResolver(DefinedTypeResolver typeResolver) {
+		this.typeResolver = typeResolver;
 	}
 	
 }
