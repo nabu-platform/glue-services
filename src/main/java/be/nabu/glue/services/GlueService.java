@@ -18,7 +18,10 @@ import be.nabu.libs.types.DefinedTypeResolverFactory;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedTypeResolver;
 import be.nabu.libs.types.api.ModifiableComplexType;
+import be.nabu.libs.types.api.Type;
+import be.nabu.libs.types.base.ValueImpl;
 import be.nabu.libs.types.structure.StructureGenerator;
+import be.nabu.libs.types.structure.SuperTypeProperty;
 
 public class GlueService implements Service {
 
@@ -48,6 +51,9 @@ public class GlueService implements Service {
 					if (input == null) {
 						input = GlueTypeUtils.toType(ScriptUtils.getFullName(script), ScriptUtils.getInputs(script), new StructureGenerator(), ScriptUtils.getRoot(script.getRepository()), getTypeResolver());
 						((ModifiableComplexType) input).setName("input");
+						if (implementedInterface != null) {
+							((ModifiableComplexType) input).setProperty(new ValueImpl<Type>(new SuperTypeProperty(), implementedInterface.getInputDefinition()));
+						}
 					}
 				}
 			}
@@ -62,6 +68,9 @@ public class GlueService implements Service {
 							}
 						}), new StructureGenerator(), ScriptUtils.getRoot(script.getRepository()), getTypeResolver());
 						((ModifiableComplexType) output).setName("output");
+						if (implementedInterface != null) {
+							((ModifiableComplexType) output).setProperty(new ValueImpl<Type>(new SuperTypeProperty(), implementedInterface.getOutputDefinition()));
+						}
 					}
 				}
 			}
