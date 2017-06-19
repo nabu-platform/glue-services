@@ -13,9 +13,14 @@ import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.api.ServiceException;
 import be.nabu.libs.services.api.ServiceInstance;
+import be.nabu.libs.types.CollectionHandlerFactory;
+import be.nabu.libs.types.ComplexContentWrapperFactory;
 import be.nabu.libs.types.TypeUtils;
+import be.nabu.libs.types.api.CollectionHandlerProvider;
 import be.nabu.libs.types.api.ComplexContent;
+import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.Element;
+import be.nabu.libs.types.mask.MaskedContent;
 
 public class GlueServiceInstance implements ServiceInstance {
 
@@ -25,6 +30,7 @@ public class GlueServiceInstance implements ServiceInstance {
 		this.service = service;
 	}
 	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public ComplexContent execute(ExecutionContext executionContext, ComplexContent input) throws ServiceException {
 		Map<String, Object> map = new HashMap<String, Object>();
@@ -57,7 +63,44 @@ public class GlueServiceInstance implements ServiceInstance {
 		// map output back
 		ComplexContent output = service.getServiceInterface().getOutputDefinition().newInstance();
 		for (Element<?> element : TypeUtils.getAllChildren(output.getType())) {
-			output.set(element.getName(), runtime.getExecutionContext().getPipeline().get(element.getName()));
+			Object value = runtime.getExecutionContext().getPipeline().get(element.getName());
+			// type mask if necessary
+			if (value != null && element.getType() instanceof ComplexType) {
+				if (element.getType().isList(element.getProperties())) {
+					CollectionHandlerProvider handler = CollectionHandlerFactory.getInstance().getHandler().getHandler(value.getClass());
+					if (handler == null) {
+						throw new RuntimeException("No collection handler found for: " + value.getClass());
+					}
+					int index = 0;
+					for (Object item : handler.getAsCollection(value)) {
+						if (!(item instanceof ComplexContent)) {
+							item = ComplexContentWrapperFactory.getInstance().getWrapper().wrap(item);
+							if (item == null) {
+								throw new RuntimeException("Could not wrap complex content around field: " + element.getName());
+							}
+						}
+						ComplexType type = ((ComplexContent) item).getType();
+						if (!type.equals(element.getType()) && TypeUtils.getUpcastPath(type, element.getType()).isEmpty()) {
+							item = new MaskedContent((ComplexContent) item, (ComplexType) element.getType());
+						}
+						output.set(element.getName() + "[" + index++ + "]", item);
+					}
+					continue;
+				}
+				else {
+					if (!(value instanceof ComplexContent)) {
+						value = ComplexContentWrapperFactory.getInstance().getWrapper().wrap(value);
+						if (value == null) {
+							throw new RuntimeException("Could not wrap complex content around field: " + element.getName());
+						}
+					}
+					ComplexType type = ((ComplexContent) value).getType();
+					if (!type.equals(element.getType()) && TypeUtils.getUpcastPath(type, element.getType()).isEmpty()) {
+						value = new MaskedContent((ComplexContent) value, (ComplexType) element.getType());
+					}
+				}
+			}
+			output.set(element.getName(), value);
 		}
 		return output;
 	}
