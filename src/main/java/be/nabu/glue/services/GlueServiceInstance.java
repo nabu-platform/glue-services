@@ -9,6 +9,7 @@ import java.util.Map;
 import be.nabu.glue.api.PostProcessor;
 import be.nabu.glue.core.impl.methods.v2.SeriesMethods;
 import be.nabu.glue.utils.ScriptRuntime;
+import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.api.ServiceException;
@@ -42,9 +43,13 @@ public class GlueServiceInstance implements ServiceInstance {
 		}
 		ScriptRuntime runtime = new ScriptRuntime(service.getScript(), new CombinedExecutionContextImpl(executionContext, service.getEnvironment(), service.getLabelEvaluator()), map);
 		
+		runtime.setFormatter(new GlueServiceFormatter(ServiceRuntime.getRuntime().getRuntimeTracker()));
+		
 		// add a post processor to automatically resolve iterables
 		// the returned variables could be used outside of a glue context which makes lazy resolving sometimes impossible (depending on the type of series)
 		List<PostProcessor> postProcessors = new ArrayList<PostProcessor>();
+		
+		// lists should have their own reference?
 		postProcessors.add(new PostProcessor() {
 			@Override
 			public void postProcess(be.nabu.glue.api.ExecutionContext context) {
