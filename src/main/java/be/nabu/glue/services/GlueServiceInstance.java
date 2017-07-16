@@ -9,6 +9,7 @@ import java.util.Map;
 import be.nabu.glue.api.PostProcessor;
 import be.nabu.glue.core.impl.methods.v2.SeriesMethods;
 import be.nabu.glue.utils.ScriptRuntime;
+import be.nabu.libs.evaluator.impl.VariableOperation;
 import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.Service;
@@ -61,7 +62,15 @@ public class GlueServiceInstance implements ServiceInstance {
 			}
 		});
 		runtime.setPostProcessors(postProcessors);
-		runtime.run();
+		
+		VariableOperation.registerRoot();
+		try {
+			runtime.run();
+		}
+		finally {
+			VariableOperation.unregisterRoot();
+		}
+		
 		if (runtime.getException() != null) {
 			throw new ServiceException(runtime.getException());
 		}
