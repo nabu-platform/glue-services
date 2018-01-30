@@ -214,7 +214,7 @@ public class ServiceMethodProvider implements MethodProvider {
 				try {
 					ServiceResult result = run.get();
 					if (result.getException() != null) {
-						throw new RuntimeException(result.getException());
+						throw new EvaluationException(result.getException());
 					}
 					return result.getOutput();
 				}
@@ -226,7 +226,7 @@ public class ServiceMethodProvider implements MethodProvider {
 				try {
 					ServiceRuntime serviceRuntime = new ServiceRuntime(service, combinedContext);
 					if (ScriptRuntime.getRuntime() != null) {
-						serviceRuntime.getContext().putAll(ScriptRuntime.getRuntime().getContext());
+						serviceRuntime.getContext(true).putAll(ScriptRuntime.getRuntime().getContext());
 					}
 					return serviceRuntime.run(input);
 				}
