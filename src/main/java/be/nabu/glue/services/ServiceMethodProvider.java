@@ -22,6 +22,7 @@ import be.nabu.libs.evaluator.EvaluationException;
 import be.nabu.libs.evaluator.api.Operation;
 import be.nabu.libs.evaluator.base.BaseMethodOperation;
 import be.nabu.libs.property.ValueUtils;
+import be.nabu.libs.property.api.Value;
 import be.nabu.libs.services.DefinedServiceResolverFactory;
 import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.DefinedService;
@@ -44,6 +45,7 @@ import be.nabu.libs.types.java.BeanType;
 import be.nabu.libs.types.map.MapContent;
 import be.nabu.libs.types.mask.MaskedContent;
 import be.nabu.libs.types.properties.CollectionHandlerProviderProperty;
+import be.nabu.libs.types.properties.MaxOccursProperty;
 import be.nabu.libs.types.structure.Structure;
 
 public class ServiceMethodProvider implements MethodProvider {
@@ -102,7 +104,7 @@ public class ServiceMethodProvider implements MethodProvider {
 						namespace, 
 						name, 
 						null, 
-						toParameters(service.getServiceInterface().getInputDefinition()), 
+						toParameters(service.getServiceInterface().getInputDefinition(), true), 
 						toParameters(service.getServiceInterface().getOutputDefinition())
 					));
 				}
@@ -114,10 +116,15 @@ public class ServiceMethodProvider implements MethodProvider {
 		return methods;
 	}
 	
-	@SuppressWarnings("rawtypes")
 	public List<ParameterDescription> toParameters(ComplexType complexType) {
+		return toParameters(complexType, false);
+	}
+	
+	@SuppressWarnings("rawtypes")
+	public List<ParameterDescription> toParameters(ComplexType complexType, boolean allowVarargs) {
 		List<ParameterDescription> parameters = new ArrayList<ParameterDescription>();
-		for (Element<?> child : TypeUtils.getAllChildren(complexType)) {
+		List<Element<?>> allChildren = new ArrayList<Element<?>>(TypeUtils.getAllChildren(complexType));
+		for (Element<?> child : allChildren) {
 			String type = null;
 			if (child.getType() instanceof DefinedType) { 
 				type = ((DefinedType) child.getType()).getId();
@@ -125,7 +132,12 @@ public class ServiceMethodProvider implements MethodProvider {
 			else if (child.getType() instanceof SimpleType) {
 				type = ((SimpleType) child.getType()).getInstanceClass().getName();
 			}
-			parameters.add(new SimpleParameterDescription(child.getName(), null, type));
+			Value<Integer> maxOccurs = child.getProperty(MaxOccursProperty.getInstance());
+			boolean isList = maxOccurs != null && maxOccurs.getValue() != 1;
+			boolean varargs = allowVarargs && isList && allChildren.indexOf(child) == allChildren.size() - 1;
+			SimpleParameterDescription parameter = new SimpleParameterDescription(child.getName(), null, type, varargs);
+			parameter.setList(isList);
+			parameters.add(parameter);
 		}
 		return parameters;
 	}
@@ -162,52 +174,65 @@ public class ServiceMethodProvider implements MethodProvider {
 			}
 			int counter = 1;
 			ComplexContent input = service.getServiceInterface().getInputDefinition().newInstance();
-			for (Element<?> element : TypeUtils.getAllChildren(input.getType())) {
+			List<Element<?>> allChildren = new ArrayList<Element<?>>(TypeUtils.getAllChildren(input.getType()));
+			for (Element<?> element : allChildren) {
+				// if we do not have enough parts, stop
 				if (counter >= getParts().size()) {
 					break;
 				}
-				Operation<ExecutionContext> argumentOperation = (Operation<ExecutionContext>) getParts().get(counter).getContent();
-				Object value = argumentOperation.evaluate(context);
-				if (value != null) {
-					if (element.getType().isList(element.getProperties())) {
-						CollectionHandlerProvider collectionHandler = ValueUtils.getValue(CollectionHandlerProviderProperty.getInstance(), element.getProperties());
-						// defaults to a list
-						if (collectionHandler == null) {
-							collectionHandler = CollectionHandlerFactory.getInstance().getHandler().getHandler(List.class);
-						}
-						List<Object> original = null;
-						if (value instanceof Object []) {
-							original = Arrays.asList((Object[]) value);
-						}
-						else if (value instanceof Collection) {
-							original = new ArrayList<Object>((Collection<Object>) value);
-						}
-						else {
-							original = Arrays.asList(value);
-						}
-						value = collectionHandler.create(null, original.size());
-						for (int i = 0; i < original.size(); i++) {
-							if (original.get(i) == null || element.getType() instanceof BeanType && ((BeanType) element.getType()).getBeanClass().isAssignableFrom(original.get(i).getClass())) {
-								collectionHandler.set(value, i, original.get(i));
+				boolean isVarargs = allChildren.indexOf(element) == allChildren.size() - 1 && element.getType().isList(element.getProperties());
+				int limit = (isVarargs ? getParts().size() - counter : 1);
+				// if this is the last element and it is a list, allow for varargs
+				for (int j = 0; j < limit; j++) {
+					Operation<ExecutionContext> argumentOperation = (Operation<ExecutionContext>) getParts().get(counter).getContent();
+					Object value = argumentOperation.evaluate(context);
+					if (value != null) {
+						if (element.getType().isList(element.getProperties())) {
+							CollectionHandlerProvider collectionHandler = ValueUtils.getValue(CollectionHandlerProviderProperty.getInstance(), element.getProperties());
+							// defaults to a list
+							if (collectionHandler == null) {
+								collectionHandler = CollectionHandlerFactory.getInstance().getHandler().getHandler(List.class);
 							}
-							// if we have a complex type, we may need to mask it
-							else if (element.getType() instanceof ComplexType) {
-								collectionHandler.set(value, i, cast(original.get(i), (ComplexType) element.getType()));
+							List<Object> original = null;
+							if (value instanceof Object []) {
+								original = Arrays.asList((Object[]) value);
+							}
+							else if (value instanceof Collection) {
+								original = new ArrayList<Object>((Collection<Object>) value);
 							}
 							else {
-								collectionHandler.set(value, i, original.get(i));
+								original = Arrays.asList(value);
+							}
+							// if we are beyond 1, we are in a varargs situation and we want to append to the existing collection
+							if (j >= 1) {
+								value = input.get(element.getName());
+							}
+							else {
+								value = collectionHandler.create(null, original.size());
+							}
+							for (int i = 0; i < original.size(); i++) {
+								if (original.get(i) == null || element.getType() instanceof BeanType && ((BeanType) element.getType()).getBeanClass().isAssignableFrom(original.get(i).getClass())) {
+									collectionHandler.set(value, i + j, original.get(i));
+								}
+								// if we have a complex type, we may need to mask it
+								else if (element.getType() instanceof ComplexType) {
+									collectionHandler.set(value, i + j, cast(original.get(i), (ComplexType) element.getType()));
+								}
+								else {
+									collectionHandler.set(value, i + j, original.get(i));
+								}
 							}
 						}
+						else if (element.getType() instanceof BeanType && ((BeanType) element.getType()).getBeanClass().isAssignableFrom(value.getClass())) {
+							// do nothing
+						}
+						else if (element.getType() instanceof ComplexType) {
+							value = cast(value, (ComplexType) element.getType());
+						}
+						input.set(element.getName(), value);
 					}
-					else if (element.getType() instanceof BeanType && ((BeanType) element.getType()).getBeanClass().isAssignableFrom(value.getClass())) {
-						// do nothing
-					}
-					else if (element.getType() instanceof ComplexType) {
-						value = cast(value, (ComplexType) element.getType());
-					}
-					input.set(element.getName(), value);
+					counter++;
 				}
-				counter++;
 			}
 			if (runner != null) {
 				Future<ServiceResult> run = runner.run(service, combinedContext, input);
