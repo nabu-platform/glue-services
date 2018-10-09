@@ -50,11 +50,19 @@ public class GlueServiceInstance implements ServiceInstance {
 		// the returned variables could be used outside of a glue context which makes lazy resolving sometimes impossible (depending on the type of series)
 		List<PostProcessor> postProcessors = new ArrayList<PostProcessor>();
 		
+		// only resolve the returned values
+		// otherwise we might use infinite series for internal purposes (e.g. index generators) that get resolved afterwards though they are not necessary
+		// if they support outputted variables, the part that is necessary will be resolved by resolving the actual return parameters
+		final List<String> returnedVariables = new ArrayList<String>();
+		for (Element<?> child : TypeUtils.getAllChildren(service.getServiceInterface().getOutputDefinition())) {
+			returnedVariables.add(child.getName());
+		}
+		
 		// lists should have their own reference?
 		postProcessors.add(new PostProcessor() {
 			@Override
 			public void postProcess(be.nabu.glue.api.ExecutionContext context) {
-				for (String key : context.getPipeline().keySet()) {
+				for (String key : returnedVariables) {
 					if (context.getPipeline().get(key) instanceof Iterable && !(context.getPipeline().get(key) instanceof Collection)) {
 						context.getPipeline().put(key, SeriesMethods.resolve((Iterable<?>) context.getPipeline().get(key)));
 					}	
