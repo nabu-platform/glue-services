@@ -22,6 +22,7 @@ import be.nabu.libs.types.api.CollectionHandlerProvider;
 import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.Element;
+import be.nabu.libs.types.java.BeanType;
 import be.nabu.libs.types.mask.MaskedContent;
 
 public class GlueServiceInstance implements ServiceInstance {
@@ -86,8 +87,9 @@ public class GlueServiceInstance implements ServiceInstance {
 		ComplexContent output = service.getServiceInterface().getOutputDefinition().newInstance();
 		for (Element<?> element : TypeUtils.getAllChildren(output.getType())) {
 			Object value = runtime.getExecutionContext().getPipeline().get(element.getName());
-			// type mask if necessary
-			if (value != null && element.getType() instanceof ComplexType) {
+			boolean isObject = element.getType() instanceof BeanType && ((BeanType) element.getType()).getBeanClass().equals(java.lang.Object.class);
+			// type mask if necessary (don't need to mask for object)
+			if (value != null && element.getType() instanceof ComplexType && !isObject) {
 				if (element.getType().isList(element.getProperties())) {
 					CollectionHandlerProvider handler = CollectionHandlerFactory.getInstance().getHandler().getHandler(value.getClass());
 					if (handler == null) {
