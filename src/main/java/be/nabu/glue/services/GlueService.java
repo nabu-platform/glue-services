@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import be.nabu.glue.api.ExecutionEnvironment;
 import be.nabu.glue.api.Executor;
 import be.nabu.glue.api.LabelEvaluator;
@@ -16,6 +19,7 @@ import be.nabu.libs.services.api.ServiceInstance;
 import be.nabu.libs.services.api.ServiceInterface;
 import be.nabu.libs.types.DefinedTypeResolverFactory;
 import be.nabu.libs.types.api.ComplexType;
+import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.DefinedTypeResolver;
 import be.nabu.libs.types.api.ModifiableComplexType;
 import be.nabu.libs.types.api.Type;
@@ -31,6 +35,7 @@ public class GlueService implements Service {
 	private ComplexType input, output;
 	private ServiceInterface implementedInterface;
 	private DefinedTypeResolver typeResolver;
+	private Logger logger = LoggerFactory.getLogger(getClass());
 
 	public GlueService(Script script, ExecutionEnvironment environment, LabelEvaluator labelEvaluator) {
 		this.script = script;
@@ -124,7 +129,19 @@ public class GlueService implements Service {
 
 	public DefinedTypeResolver getTypeResolver() {
 		if (typeResolver == null) {
-			typeResolver = DefinedTypeResolverFactory.getInstance().getResolver();
+			typeResolver = new DefinedTypeResolver() {
+				private DefinedTypeResolver centralTypeResolver = DefinedTypeResolverFactory.getInstance().getResolver(); 
+				@Override
+				
+				public DefinedType resolve(String id) {
+					DefinedType resolve = centralTypeResolver.resolve(id);
+					if (resolve == null) {
+						logger.warn("Could not resolve type '" + id + "', falling back to Object");
+						resolve = centralTypeResolver.resolve(Object.class.getName());
+					}
+					return resolve;
+				}
+			};
 		}
 		return typeResolver;
 	}
