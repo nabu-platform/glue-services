@@ -3,6 +3,8 @@ package be.nabu.glue.services;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -14,11 +16,12 @@ import be.nabu.glue.impl.SimpleExecutionContext;
 import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.metrics.api.MetricInstance;
 import be.nabu.libs.services.api.ExecutionContextProvider;
+import be.nabu.libs.services.api.FeaturedExecutionContext;
 import be.nabu.libs.services.api.SecurityContext;
 import be.nabu.libs.services.api.ServiceContext;
 import be.nabu.libs.services.api.TransactionContext;
 
-public class CombinedExecutionContextImpl implements CombinedExecutionContext {
+public class CombinedExecutionContextImpl implements CombinedExecutionContext, FeaturedExecutionContext {
 
 	private be.nabu.libs.services.api.ExecutionContext serviceContext;
 	private ExecutionContext glueContext;
@@ -136,6 +139,11 @@ public class CombinedExecutionContextImpl implements CombinedExecutionContext {
 	@Override
 	public MetricInstance getMetricInstance(String id) {
 		return serviceContext.getMetricInstance(id);
+	}
+
+	@Override
+	public List<String> getEnabledFeatures() {
+		return serviceContext instanceof FeaturedExecutionContext ? ((FeaturedExecutionContext) serviceContext).getEnabledFeatures() : new ArrayList<String>();
 	}
 
 }
