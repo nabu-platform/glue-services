@@ -43,9 +43,10 @@ public class GlueServiceInstance implements ServiceInstance {
 				map.put(element.getName(), input.get(element.getName()));
 			}
 		}
+		ScriptRuntime currentRuntime = ScriptRuntime.getRuntime();
 		ScriptRuntime runtime = new ScriptRuntime(service.getScript(), new CombinedExecutionContextImpl(executionContext, service.getEnvironment(), service.getLabelEvaluator()), map);
 		
-		runtime.setFormatter(new GlueServiceFormatter(ServiceRuntime.getRuntime().getRuntimeTracker()));
+		runtime.setFormatter(new GlueServiceFormatter(ServiceRuntime.getRuntime().getRuntimeTracker(), currentRuntime == null ? null : currentRuntime.getFormatter()));
 		
 		// add a post processor to automatically resolve iterables
 		// the returned variables could be used outside of a glue context which makes lazy resolving sometimes impossible (depending on the type of series)
@@ -97,15 +98,20 @@ public class GlueServiceInstance implements ServiceInstance {
 					}
 					int index = 0;
 					for (Object item : handler.getAsCollection(value)) {
-						if (!(item instanceof ComplexContent)) {
-							item = ComplexContentWrapperFactory.getInstance().getWrapper().wrap(item);
-							if (item == null) {
-								throw new RuntimeException("Could not wrap complex content around field: " + element.getName());
+						if (item != null) {
+							if (!(item instanceof ComplexContent)) {
+								Object cast = ComplexContentWrapperFactory.getInstance().getWrapper().wrap(item);
+								if (cast == null) {
+									throw new RuntimeException("Could not wrap complex content around field: " + element.getName() + " (" + item + ")");
+								}
+								else {
+									item = cast;
+								}
 							}
-						}
-						ComplexType type = ((ComplexContent) item).getType();
-						if (!type.equals(element.getType()) && TypeUtils.getUpcastPath(type, element.getType()).isEmpty()) {
-							item = new MaskedContent((ComplexContent) item, (ComplexType) element.getType());
+							ComplexType type = ((ComplexContent) item).getType();
+							if (!type.equals(element.getType()) && TypeUtils.getUpcastPath(type, element.getType()).isEmpty()) {
+								item = new MaskedContent((ComplexContent) item, (ComplexType) element.getType());
+							}
 						}
 						output.set(element.getName() + "[" + index++ + "]", item);
 					}

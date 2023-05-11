@@ -17,15 +17,20 @@ import be.nabu.libs.services.api.ServiceRuntimeTracker;
 public class GlueServiceFormatter implements OutputFormatter {
 
 	private ServiceRuntimeTracker tracker;
+	private OutputFormatter parent;
 
-	public GlueServiceFormatter(ServiceRuntimeTracker tracker) {
+	public GlueServiceFormatter(ServiceRuntimeTracker tracker, OutputFormatter parent) {
 		this.tracker = tracker;
+		this.parent = parent;
 	}
 	
 	@Override
 	public void start(Script script) {
 		if (tracker != null) {
 			tracker.start(new ScriptService(script));
+		}
+		if (parent != null) {
+			parent.start(script);
 		}
 	}
 
@@ -37,6 +42,9 @@ public class GlueServiceFormatter implements OutputFormatter {
 				tracker.before(new ExecutorStep(executor, string));
 			}
 		}
+		if (parent != null) {
+			parent.before(executor);
+		}
 	}
 
 	@Override
@@ -47,16 +55,24 @@ public class GlueServiceFormatter implements OutputFormatter {
 				tracker.before(new ExecutorStep(executor, string));
 			}
 		}
+		if (parent != null) {
+			parent.after(executor);
+		}
 	}
 
 	@Override
 	public void validated(GlueValidation... validations) {
-		
+		if (parent != null) {
+			parent.validated(validations);
+		}
 	}
 
 	@Override
 	public void print(Object... messages) {
 		ScriptMethods.console(messages);
+		if (parent != null) {
+			parent.print(messages);
+		}
 	}
 
 	@Override
@@ -68,6 +84,9 @@ public class GlueServiceFormatter implements OutputFormatter {
 			else {
 				tracker.stop(new ScriptService(script));
 			}
+		}
+		if (parent != null) {
+			parent.end(script, started, stopped, exception);
 		}
 	}
 
