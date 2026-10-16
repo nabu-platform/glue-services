@@ -17,8 +17,13 @@
 
 package be.nabu.glue.services;
 
+import java.util.ArrayDeque;
 import java.util.Date;
+import java.util.Deque;
 import java.util.Set;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import be.nabu.glue.api.Executor;
 import be.nabu.glue.api.OutputFormatter;
@@ -26,15 +31,19 @@ import be.nabu.glue.api.Script;
 import be.nabu.glue.api.runs.GlueValidation;
 import be.nabu.glue.core.impl.methods.v2.ScriptMethods;
 import be.nabu.glue.utils.ScriptUtils;
+import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.DefinedService;
+import be.nabu.libs.services.api.TransactionContext;
 import be.nabu.libs.services.api.ServiceInstance;
 import be.nabu.libs.services.api.ServiceInterface;
 import be.nabu.libs.services.api.ServiceRuntimeTracker;
 
 public class GlueServiceFormatter implements OutputFormatter {
 
+	private static final Logger logger = LoggerFactory.getLogger(GlueServiceFormatter.class);
 	private ServiceRuntimeTracker tracker;
 	private OutputFormatter parent;
+	private Deque<TransactionScope> transactionScopes = new ArrayDeque<TransactionScope>();
 
 	public GlueServiceFormatter(ServiceRuntimeTracker tracker, OutputFormatter parent) {
 		this.tracker = tracker;
@@ -62,10 +71,25 @@ public class GlueServiceFormatter implements OutputFormatter {
 		if (parent != null) {
 			parent.before(executor);
 		}
+		if (executor.getContext() != null && executor.getContext().getAnnotations().containsKey("transaction")) {
+			TransactionContext transactions = ServiceRuntime.getRuntime().getExecutionContext().getTransactionContext();
+			String previousId = transactions.getDefaultTransactionId();
+			String transactionId = UUID.randomUUID().toString().replace("-", "");
+			transactions.setDefaultTransactionId(transactionId);
+			try {
+				transactionScopes.push(new TransactionScope(executor, transactions, previousId, transactionId));
+			}
+			catch (RuntimeException e) {
+				logger.error("Could not initialize Glue transaction scope", e);
+				transactions.setDefaultTransactionId(previousId);
+				throw e;
+			}
+		}
 	}
 
 	@Override
 	public void after(Executor executor) {
+		finishTransaction(executor, false);
 		if (tracker != null) {
 			String string = executor.getContext().getAnnotations().get("step");
 			if (string != null) {
@@ -74,6 +98,49 @@ public class GlueServiceFormatter implements OutputFormatter {
 		}
 		if (parent != null) {
 			parent.after(executor);
+		}
+	}
+
+	@Override
+	public void error(Executor executor, Exception exception) {
+		finishTransaction(executor, true);
+		if (parent != null) {
+			parent.error(executor, exception);
+		}
+	}
+
+	private void finishTransaction(Executor executor, boolean failed) {
+		if (executor.getContext() != null && executor.getContext().getAnnotations().containsKey("transaction")
+				&& (transactionScopes.isEmpty() || transactionScopes.peek().executor != executor)) {
+			throw new IllegalStateException("Transaction scope is not active for Glue executor: " + executor.getId());
+		}
+		if (!transactionScopes.isEmpty() && transactionScopes.peek().executor == executor) {
+			TransactionScope scope = transactionScopes.pop();
+			try {
+				if (failed) {
+					scope.transactions.rollback(scope.transactionId);
+				}
+				else {
+					scope.transactions.commit(scope.transactionId);
+				}
+			}
+			finally {
+				scope.transactions.setDefaultTransactionId(scope.previousId);
+			}
+		}
+	}
+
+	private static class TransactionScope {
+		private final Executor executor;
+		private final TransactionContext transactions;
+		private final String previousId;
+		private final String transactionId;
+
+		private TransactionScope(Executor executor, TransactionContext transactions, String previousId, String transactionId) {
+			this.executor = executor;
+			this.transactions = transactions;
+			this.previousId = previousId;
+			this.transactionId = transactionId;
 		}
 	}
 
