@@ -69,15 +69,13 @@ public class ServiceMethodProvider implements MethodProvider {
 	
 	public static final String SERVICE_CONTEXT = "serviceContext";
 	
-	private Logger logger = LoggerFactory.getLogger(getClass());
+	private static final Logger logger = LoggerFactory.getLogger(ServiceMethodProvider.class);
 
 	private DefinedServiceResolver serviceResolver = DefinedServiceResolverFactory.getInstance().getResolver();
 
 	private ExecutionContextProvider provider;
 
-	private DefinedServiceLister lister;
-	
-	private List<MethodDescription> methods;
+	private final ServiceMethodCatalog catalog;
 	
 	private ServiceRunner runner;
 
@@ -86,7 +84,11 @@ public class ServiceMethodProvider implements MethodProvider {
 	}
 	
 	public ServiceMethodProvider(DefinedServiceLister lister, ExecutionContextProvider provider, ServiceRunner runner) {
-		this.lister = lister;
+		this(new ServiceMethodCatalog(lister), provider, runner);
+	}
+
+	public ServiceMethodProvider(ServiceMethodCatalog catalog, ExecutionContextProvider provider, ServiceRunner runner) {
+		this.catalog = catalog;
 		this.provider = provider;
 		this.runner = runner;
 	}
@@ -99,17 +101,10 @@ public class ServiceMethodProvider implements MethodProvider {
 
 	@Override
 	public List<MethodDescription> getAvailableMethods() {
-		if (methods == null) {
-			synchronized(this) {
-				if (methods == null) {
-					methods = getMethods();
-				}
-			}
-		}
-		return methods;
+		return catalog.getAvailableMethods();
 	}
-	
-	private List<MethodDescription> getMethods() {
+
+	static List<MethodDescription> describeServices(DefinedServiceLister lister) {
 		List<MethodDescription> methods = new ArrayList<MethodDescription>();
 		if (lister != null) {
 			for (DefinedService service : lister.getServices()) {
@@ -121,8 +116,8 @@ public class ServiceMethodProvider implements MethodProvider {
 						namespace, 
 						name, 
 						null, 
-						toParameters(service.getServiceInterface().getInputDefinition(), true), 
-						toParameters(service.getServiceInterface().getOutputDefinition())
+						describeParameters(service.getServiceInterface().getInputDefinition(), true),
+						describeParameters(service.getServiceInterface().getOutputDefinition(), false)
 					));
 				}
 				catch (Exception e) {
@@ -136,9 +131,13 @@ public class ServiceMethodProvider implements MethodProvider {
 	public List<ParameterDescription> toParameters(ComplexType complexType) {
 		return toParameters(complexType, false);
 	}
-	
-	@SuppressWarnings("rawtypes")
+
 	public List<ParameterDescription> toParameters(ComplexType complexType, boolean allowVarargs) {
+		return describeParameters(complexType, allowVarargs);
+	}
+
+	@SuppressWarnings("rawtypes")
+	private static List<ParameterDescription> describeParameters(ComplexType complexType, boolean allowVarargs) {
 		List<ParameterDescription> parameters = new ArrayList<ParameterDescription>();
 		List<Element<?>> allChildren = new ArrayList<Element<?>>(TypeUtils.getAllChildren(complexType));
 		for (Element<?> child : allChildren) {
